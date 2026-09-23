@@ -172,23 +172,40 @@
     return out.sort(function (a, b) { return b.d < a.d ? -1 : b.d > a.d ? 1 : 0; });
   }
 
-  // Watch list: how far the market is from the next notable level right now
+  // Watch list: how far the market is from the next notable level right now.
+  // Each row carries its own wording and its own number format, because
+  // "price is x% above" makes no sense for a ratio or an oscillator.
   function watchlist() {
     var S = D.series, L = function (a) { for (var i = N - 1; i >= 0; i--) if (a[i] != null) return a[i]; return null; };
-    var px = L(S.gold_close), items = [];
-    var add = function (label, distance, tone, value) { if (distance != null && isFinite(distance)) items.push({ label: label, distance: distance, tone: tone, value: value }); };
-
-    add('200-day average ' + D.fmt.usd(L(S.ma200)), (px / L(S.ma200) - 1) * 100, 'neutral', L(S.ma200));
-    add('200-week average ' + D.fmt.usd(L(S.ma200w)), (px / L(S.ma200w) - 1) * 100, 'neutral', L(S.ma200w));
-    add('Overbought RSI 70', 70 - L(S.rsi14), 'bear', 70);
-    add('Oversold RSI 30', 30 - L(S.rsi14), 'bull', 30);
-    add('All-time high ' + D.fmt.usd(Math.max.apply(null, S.gold_close)), (px / Math.max.apply(null, S.gold_close) - 1) * 100, 'bull', Math.max.apply(null, S.gold_close));
-    add('Cycle phase Top (75)', 75 - L(D.signalScore('cycle')), 'bear', 75);
-    add('Cycle phase Bottom (25)', 25 - L(D.signalScore('cycle')), 'bull', 25);
-    add('Gold/silver 80', 80 - L(S.gsr), 'bear', 80);
-    add('Gold/silver 50', 50 - L(S.gsr), 'bull', 50);
-    add('Real yield 2%', 2 - L(S.realyield), 'neutral', L(S.realyield));
-    return items.sort(function (a, b) { return Math.abs(a.distance) - Math.abs(b.distance); }).slice(0, 6);
+    var px = L(S.gold_close), rsi = L(S.rsi14), cyc = L(D.signalScore('cycle')), gsr = L(S.gsr), ry = L(S.realyield);
+    var items = [];
+    function add(o) { items.push(o); }
+    function priceRow(key, level, label, phrase) {
+      var d = (px / level - 1) * 100;
+      add({ key: key, label: label, sort: Math.abs(d), tone: d >= 0 ? 'neutral' : 'neutral',
+        text: 'price is ' + Math.abs(d).toFixed(2) + '% ' + (d >= 0 ? 'above' : 'below') + ' ' + phrase + ' — now ' + D.fmt.usd(px),
+        value: (d >= 0 ? '+' : '') + d.toFixed(2) + '%' });
+    }
+    function pointsRow(key, level, now, name, unit, phrase, label) {
+      var d = now - level;
+      add({ key: key + '_' + level, label: label, sort: Math.abs(d),
+        tone: /overbought|Top|80/.test(phrase) ? (d >= 0 ? 'bear' : 'neutral') : (d <= 0 ? 'bull' : 'neutral'),
+        text: name + ' is ' + Math.abs(d).toFixed(unit === '%' ? 2 : 1) + (unit === 'pp' ? 'pp' : unit === '%' ? 'pp' : ' points') + ' ' + (d >= 0 ? 'above' : 'below') + ' ' + level + (unit === '%' ? '%' : '') + ' — now ' + (unit === '%' ? now.toFixed(2) + '%' : now.toFixed(1)),
+        value: (d >= 0 ? '+' : '') + d.toFixed(unit === '%' ? 2 : 1) });
+    }
+    var ma200 = L(S.ma200), ma200w = L(S.ma200w);
+    var ath = Math.max.apply(null, S.gold_close);
+    priceRow('ma200', ma200, 'Back to the 200-day average', 'the 200-day average (' + D.fmt.usd(ma200) + ')');
+    priceRow('ma200w', ma200w, 'Back to the 200-week average', 'the 200-week average (' + D.fmt.usd(ma200w) + ')');
+    priceRow('ath', ath, 'A new all-time high', 'the all-time high (' + D.fmt.usd(ath) + ')');
+    pointsRow('rsi', 70, rsi, 'RSI', '', 'Overbought', 'Overbought — RSI 70');
+    pointsRow('rsi', 30, rsi, 'RSI', '', 'Oversold', 'Oversold — RSI 30');
+    pointsRow('cycle', 75, cyc, 'Cycle Index', '', 'Top', 'Cycle phase Top — score 75');
+    pointsRow('cycle', 25, cyc, 'Cycle Index', '', 'Bottom', 'Cycle phase Bottom — score 25');
+    pointsRow('gsr', 80, gsr, 'Gold/silver ratio', '', 'Gold/silver 80', 'Gold / silver 80');
+    pointsRow('gsr', 50, gsr, 'Gold/silver ratio', '', 'Gold/silver 50', 'Gold / silver 50');
+    pointsRow('ry', 2, ry, '10Y real yield', '%', 'Real yield 2%', 'Real yield 2%');
+    return items.sort(function (a, b) { return a.sort - b.sort; }).slice(0, 6);
   }
 
   window.NT_EVENTS = { detect: detect, watchlist: watchlist, toneOf: toneOf };

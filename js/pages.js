@@ -77,16 +77,24 @@
   }
 
   function mountCards(root, specs, opts) {
+    // paint skeletons first so the page is instantly interactive, then render the
+    // charts one per frame — the grid fills in progressively instead of blocking
     specs.forEach(spec => {
       const host = $('[data-chart="' + spec.slug + '"]', root);
-      if (!host) return;
-      let chart = null;
-      try { chart = D.renderChart(host, spec, { compact: true, range: opts && opts.useRange ? (NAV.state.range || '5Y') : '5Y', height: (opts && opts.height) || 210 }); } catch (e) { console.error(e); }
-      NAV.register(spec, chart, { footEl: $('[data-foot="' + spec.slug + '"]', root) });
-      const card = host.closest('.chart-card');
-      const menuBtn = $('[data-menu]', card);
-      if (menuBtn) menuBtn.addEventListener('click', (e) => { e.preventDefault(); NAV.showMenu(menuBtn, cardMenuItems(spec, chart)); });
-      card.addEventListener('dblclick', (e) => { if (!e.target.closest('a')) NAV.go('charts/' + spec.slug); });
+      if (host) host.innerHTML = '<div class="skeleton" style="height:' + ((opts && opts.height) || 210) + 'px"></div>';
+    });
+    specs.forEach((spec, i) => {
+      setTimeout(() => {
+        const host = $('[data-chart="' + spec.slug + '"]', root);
+        if (!host || !document.body.contains(host)) return;
+        let chart = null;
+        try { chart = D.renderChart(host, spec, { compact: true, range: opts && opts.useRange ? (NAV.state.range || '5Y') : '5Y', height: (opts && opts.height) || 210 }); } catch (e) { console.error(e); }
+        NAV.register(spec, chart, { footEl: $('[data-foot="' + spec.slug + '"]', root) });
+        const card = host.closest('.chart-card');
+        const menuBtn = $('[data-menu]', card);
+        if (menuBtn) menuBtn.addEventListener('click', (e) => { e.preventDefault(); NAV.showMenu(menuBtn, cardMenuItems(spec, chart)); });
+        card.addEventListener('dblclick', (e) => { if (!e.target.closest('a')) NAV.go('charts/' + spec.slug); });
+      }, i * 40);
     });
   }
 
@@ -123,7 +131,7 @@
       '<div class="pulse-value" data-live-spot>' + F.usd(spot) + '</div>',
       '<div class="pulse-delta ' + (up ? 'up' : 'down') + '" data-live-chg>' + (up ? '▲' : '▼') + ' ' + F.usd(Math.abs(chg)) + ' · ' + F.pct(chgp) + '</div>',
       '<div class="pulse-foot"><span data-live-mode>' + liveModeText(live) + '</span>' +
-      '<span style="margin-left:auto" class="mono">24h ' + (live.low ? F.usd(live.low) + '–' + F.usd(live.high) : '—') + '</span></div>',
+      '<span style="margin-left:auto" class="mono" data-live-range>24h ' + (live.low ? F.usd(live.low) + '–' + F.usd(live.high) : 'loading…') + '</span></div>',
       '<div class="pulse-spark" data-live-spark>' + D.sparkline(sparkVals, { height: 34, width: 260, color: NAV.cssVar('--color-primary', '#c96442') }) + '</div>',
       '</div>',
 
@@ -131,20 +139,20 @@
       '<div class="pulse-top"><span class="pulse-label">Cycle index</span><span class="badge badge-' + (phase || 'bearish').toLowerCase() + '" style="margin-left:auto">' + esc(phase || '—') + '</span></div>',
       '<div class="pulse-value">' + (cyc == null ? '—' : Math.round(cyc)) + '<span class="muted" style="font-size:1.4rem">/100</span></div>',
       gauge(cyc),
-      '<div class="pulse-foot">20 signals · avg percentile<span style="margin-left:auto" class="mono">' + (NAV.state.tt != null ? 'as of ' + D.dates[idx] : 'live') + '</span></div>',
+      '<div class="pulse-foot">average of 19 signal percentiles<span style="margin-left:auto" class="mono">' + (NAV.state.tt != null ? 'as of ' + D.dates[idx] : 'daily · ' + D.stats.date) + '</span></div>',
       '<div class="pulse-spark" data-cycle-spark>' + D.sparkline(cycSeries, { height: 34, width: 260, color: NAV.cssVar('--phase-top', '#c0392b'), neutral: false }) + '</div>',
       '</div>',
 
       '<div class="card pulse clickable" data-jump="signals" title="Open the signal explorer">',
       '<div class="pulse-top"><span class="pulse-label">30-day breadth</span></div>',
-      '<div class="pulse-value small">' + bull + ' <span class="muted" style="font-size:1.4rem">/ ' + total + ' bullish</span></div>',
-      '<div class="bar-track">' +
+      '<div class="pulse-value small">' + bull + ' <span class="muted" style="font-size:1.4rem">of ' + total + ' in a bullish phase</span></div>',
+      '<div class="bar-track" title="Bottom ' + b.Bottom + ' · Bearish ' + b.Bearish + ' · Bullish ' + b.Bullish + ' · Top ' + b.Top + '">' +
       '<span style="width:' + (b.Bottom / total * 100) + '%;background:' + NAV.cssVar('--phase-bottom', '#3f6f9f') + '"></span>' +
       '<span style="width:' + (b.Bearish / total * 100) + '%;background:' + NAV.cssVar('--phase-bearish', '#9dc0dd') + '"></span>' +
       '<span style="width:' + (b.Bullish / total * 100) + '%;background:' + NAV.cssVar('--phase-bullish', '#e9b3a3') + '"></span>' +
       '<span style="width:' + (b.Top / total * 100) + '%;background:' + NAV.cssVar('--phase-top', '#c0392b') + '"></span>' +
       '</div>',
-      '<div class="pulse-foot"><span class="legend-inline"><i style="background:' + NAV.cssVar('--phase-bottom', '#3f6f9f') + '"></i>Bottom ' + b.Bottom + '</span>' +
+      '<div class="pulse-foot" style="font-size:1.15rem"><span class="legend-inline"><i style="background:' + NAV.cssVar('--phase-bottom', '#3f6f9f') + '"></i>Bottom ' + b.Bottom + '</span>' +
       '<span class="legend-inline"><i style="background:' + NAV.cssVar('--phase-bearish', '#9dc0dd') + '"></i>Bearish ' + b.Bearish + '</span>' +
       '<span class="legend-inline"><i style="background:' + NAV.cssVar('--phase-bullish', '#e9b3a3') + '"></i>Bullish ' + b.Bullish + '</span>' +
       '<span class="legend-inline"><i style="background:' + NAV.cssVar('--phase-top', '#c0392b') + '"></i>Top ' + b.Top + '</span></div>',
@@ -154,15 +162,17 @@
       '<div class="pulse-top"><span class="pulse-label">Gold / silver ratio</span></div>',
       '<div class="pulse-value small">' + (gsrNow == null ? '—' : gsrNow.toFixed(1)) + '</div>',
       '<div class="pulse-delta ' + (gsrD >= 0 ? 'up' : 'down') + '">' + (gsrD >= 0 ? '▲' : '▼') + ' ' + (gsrD == null ? '—' : F.pct(gsrD)) + ' <span class="muted">30d</span></div>',
-      '<div class="pulse-foot">Ounces of silver per ounce of gold</div>',
+      '<div class="pulse-foot">silver ounces per gold ounce<span style="margin-left:auto" class="mono">daily · ' + D.stats.date + '</span></div>',
       '<div class="pulse-spark" data-gsr-spark>' + D.sparkline(D.series.gsr.slice(Math.max(0, idx - 260), idx + 1), { height: 34, width: 260, color: NAV.cssVar('--phase-bottom', '#3f6f9f'), upIsGood: true }) + '</div>',
       '</div>'
     ].join('');
   }
 
   function liveModeText(live) {
+    const ago = live.secondsAgo();
+    if (ago != null && ago > 180) return 'no print for ' + Math.round(ago / 60) + ' min — reconnecting…';
     if (live.connected) {
-      const ago = live.secondsAgo();
+      if (!live.tickCount) return 'live stream · waiting for the next print' + (ago != null ? ' · ' + ago + 's ago' : '');
       return 'live stream · ' + live.tickCount + (live.tickCount === 1 ? ' tick' : ' ticks') + (ago != null ? ' · ' + ago + 's ago' : '');
     }
     return live.mode === 'poll' ? 'polling · REST fallback every 45s' : 'connecting…';
@@ -195,7 +205,7 @@
     const modeEl = $('[data-live-mode]', host);
     if (modeEl) modeEl.textContent = liveModeText(live);
     const rangeEl = $('[data-live-range]', host);
-    if (rangeEl) rangeEl.textContent = live.low ? F.usd(live.low) + ' – ' + F.usd(live.high) : '—';
+    if (rangeEl) rangeEl.textContent = live.low ? '24h ' + F.usd(live.low) + '–' + F.usd(live.high) : '24h loading…';
   }
 
   // ------------------------------------------------------------- heatmap
@@ -475,7 +485,8 @@
         esc(ex.label) + ' <span class="muted">' + (ex.yAxis ? 'right' : 'left') + ' · ✕</span></button>').join('') : '';
       $$('[data-ex]', view).forEach(b => b.addEventListener('click', () => { st.extra.splice(Number(b.getAttribute('data-ex')), 1); draw(); }));
     }
-    draw();
+    host.innerHTML = '<div class="skeleton" style="height:430px"></div>';
+    setTimeout(draw, 0);
     if (st.log) $('[data-log]', view).style.background = 'var(--color-primary-soft)';
     if (!canLog) { const lb = $('[data-log]', view); lb.style.opacity = 0.5; lb.title = 'Logarithmic scale is not available for this chart'; }
 
@@ -661,8 +672,9 @@
       '<div class="page-sub">The composite Cycle Index plus ' + (rows.length - 1) + ' underlying signals — each the five-year percentile rank of a real gold metric, mapped into a cycle phase.</div></div>',
       '<div class="right">',
       '<button class="btn btn-secondary btn-sm" id="topsBtn">' + ICONS.alert + ' Tops &amp; bottoms</button>',
-      '<label class="field" style="width:17rem" title="Time machine: show the signals as they were on a past date">' + ICONS.clock +
-      '<input type="date" id="tmDate" min="' + D.dates[0] + '" max="' + D.dates[D.n - 1] + '"></label>',
+      '<button class="btn btn-secondary btn-sm" id="tmToday" title="Back to today">' + ICONS.clock + ' Today</button>',
+      '<label class="field" style="width:21rem" title="Time machine: show the signal board as it was on any past date">' +
+      '<input type="date" id="tmDate" min="' + D.dates[0] + '" max="' + D.dates[D.n - 1] + '" value="' + D.dates[D.n - 1] + '" aria-label="Time machine date"></label>',
       '<select class="inp" id="fPhase" style="width:13rem"><option value="all">All phases</option><option>Bottom</option><option>Bearish</option><option>Bullish</option><option>Top</option></select>',
       '<select class="inp" id="fCat" style="width:15rem"><option value="all">All categories</option>' + cats.map(c => '<option>' + esc(c) + '</option>').join('') + '</select>',
       '<select class="inp" id="fSort" style="width:15rem"><option value="score">Sort: value</option><option value="d30">Sort: 30d change</option><option value="d7">Sort: 7d change</option><option value="title">Sort: name</option></select>',
@@ -709,7 +721,7 @@
       const marks = rows.filter(r => r.key !== 'cycle').map(r => Math.max(0, Math.min(100, r.score)));
       return '<div class="spectrum"><div class="track">' +
         marks.map(v => '<span class="marker" style="left:' + v + '%"></span>').join('') +
-        '<span class="pin" style="left:' + Math.max(0, Math.min(100, cur || 0)) + '%">' + Math.round(cur || 0) + ' · ' + D.phaseOf(cur) + '</span>' +
+        '<span class="pin" style="left:' + Math.max(0, Math.min(100, cur || 0)) + '%">Cycle Index ' + Math.round(cur || 0) + '/100 · ' + D.phaseOf(cur) + '</span>' +
         '</div><div class="scale"><span>Bottom 0</span><span>Bearish 25</span><span>Bullish 50</span><span>Top 75</span><span>100</span></div></div>';
     }
 
@@ -745,7 +757,7 @@
         '<div class="pulse-foot">52w range ' + F.usd(D.stats.low52) + ' – ' + F.usd(D.stats.high52) + '</div>' + pxSpark + '</div>',
 
         '<div class="card pulse"><div class="pulse-top"><span class="pulse-label">Consensus</span></div>' +
-        '<div class="pulse-value small">' + (b.Bullish + b.Top) + ' <span class="muted" style="font-size:1.4rem">/ ' + b.total + ' bullish</span></div>' +
+        '<div class="pulse-value small">' + (b.Bullish + b.Top) + ' <span class="muted" style="font-size:1.4rem">of ' + b.total + ' in a bullish phase</span></div>' +
         '<div class="bar-track">' +
         '<span style="width:' + (b.Bottom / b.total * 100) + '%;background:' + NAV.cssVar('--phase-bottom', '#3f6f9f') + '"></span>' +
         '<span style="width:' + (b.Bearish / b.total * 100) + '%;background:' + NAV.cssVar('--phase-bearish', '#9dc0dd') + '"></span>' +
@@ -754,12 +766,12 @@
         '</div><div class="pulse-foot">Bottom ' + b.Bottom + ' · Bearish ' + b.Bearish + ' · Bullish ' + b.Bullish + ' · Top ' + b.Top + '</div></div>',
 
         '<div class="card pulse"><div class="pulse-top"><span class="pulse-label">30d momentum</span></div>' +
-        '<div class="pulse-value small">' + rising + ' <span class="muted" style="font-size:1.4rem">/ ' + (b.total) + ' rising</span></div>' +
-        '<div class="bar-track">' +
-        '<span style="width:' + (rising / b.total * 100) + '%;background:' + NAV.cssVar('--phase-bullish', '#e9b3a3') + '"></span>' +
+        '<div class="pulse-value small">' + rising + ' <span class="muted" style="font-size:1.4rem">of ' + (b.total) + ' rising over 30 days</span></div>' +
+        '<div class="bar-track" title="Rising ' + rising + ' · Flat ' + flat + ' · Falling ' + falling + '">' +
+        '<span style="width:' + (rising / b.total * 100) + '%;background:' + NAV.cssVar('--color-up', '#2f7d4f') + '"></span>' +
         '<span style="width:' + (flat / b.total * 100) + '%;background:var(--color-hover-strong)"></span>' +
-        '<span style="width:' + (falling / b.total * 100) + '%;background:' + NAV.cssVar('--phase-bottom', '#3f6f9f') + '"></span>' +
-        '</div><div class="pulse-foot">Rising ' + rising + ' · Flat ' + flat + ' · Falling ' + falling + '</div></div>'
+        '<span style="width:' + (falling / b.total * 100) + '%;background:' + NAV.cssVar('--color-down', '#c0392b') + '"></span>' +
+        '</div><div class="pulse-foot" style="font-size:1.15rem">Rising ' + rising + ' · Flat ' + flat + ' · Falling ' + falling + '</div></div>'
       ].join('');
     }
 
@@ -769,15 +781,15 @@
         '<span class="icon-btn" style="pointer-events:none">' + ICONS.chart + '</span>' +
         '<div class="main"><div class="name">' + esc(r.title) + '</div>' +
         '<div class="meta">' + esc(r.cat) + ' · score ' + r.score.toFixed(1) + ' · ' + esc(r.phase) + '</div></div>' +
-        '<div class="mono ' + (r.d30 >= 0 ? 'up' : 'down') + '" style="font-size:1.5rem">' + (r.d30 >= 0 ? '▲' : '▼') + ' ' + Math.abs(r.d30).toFixed(1) + '</div>' +
+        '<div class="mono ' + (r.d30 >= 0 ? 'up' : 'down') + '" style="font-size:1.5rem;text-align:right;min-width:6.4rem">' + (r.d30 >= 0 ? '+' : '') + r.d30.toFixed(1) + '</div>' +
         '<span class="badge badge-' + (r.phase || 'bearish').toLowerCase() + '">' + esc(r.phase) + '</span></div>').join('');
     }
     function watchHTML() {
       const items = window.NT_EVENTS ? window.NT_EVENTS.watchlist() : [];
       return items.map(w => '<div class="alert-row">' +
         '<span class="icon-btn" style="pointer-events:none">' + ICONS.clock + '</span>' +
-        '<div class="main"><div class="name">' + esc(w.label) + '</div><div class="meta">' + (w.distance >= 0 ? 'price is ' + w.distance.toFixed(2) + '% above' : 'price is ' + Math.abs(w.distance).toFixed(2) + '% below') + '</div></div>' +
-        '<div class="mono" style="font-size:1.35rem;color:' + (w.tone === 'bull' ? NAV.cssVar('--color-up', '#2f7d4f') : w.tone === 'bear' ? NAV.cssVar('--color-down', '#c0392b') : 'var(--color-text-secondary)') + '">' + w.distance.toFixed(2) + '%</div></div>').join('');
+        '<div class="main"><div class="name">' + esc(w.label) + '</div><div class="meta">' + esc(w.text) + '</div></div>' +
+        '<div class="mono" style="font-size:1.35rem;min-width:7rem;text-align:right;color:' + (w.tone === 'bull' ? NAV.cssVar('--color-up', '#2f7d4f') : w.tone === 'bear' ? NAV.cssVar('--color-down', '#c0392b') : 'var(--color-text-secondary)') + '">' + esc(w.value) + '</div></div>').join('');
     }
 
     function paintTable() {
@@ -815,6 +827,10 @@
       topsOnly = !topsOnly;
       e.currentTarget.style.background = topsOnly ? 'var(--color-primary-soft)' : '';
       paintTable();
+    });
+    $('#tmToday').addEventListener('click', () => {
+      if (NAV.state.tt == null) { NAV.toast('Already showing today', 'Signals are up to date as of ' + D.dates[D.n - 1] + '.'); return; }
+      NAV.setTT(null);
     });
     $('#tmDate').addEventListener('change', (e) => {
       const v = e.target.value;
@@ -1100,8 +1116,8 @@
       return (EV.watchlist() || []).map(w => '<div class="alert-row">' +
         '<span class="icon-btn" style="pointer-events:none">' + ICONS.clock + '</span>' +
         '<div class="main"><div class="name">' + esc(w.label) + '</div>' +
-        '<div class="meta">' + (w.distance >= 0 ? 'price is ' + w.distance.toFixed(2) + '% above' : 'price is ' + Math.abs(w.distance).toFixed(2) + '% below') + '</div></div>' +
-        '<div class="mono tiny" style="color:' + (w.tone === 'bull' ? NAV.cssVar('--color-up', '#2f7d4f') : w.tone === 'bear' ? NAV.cssVar('--color-down', '#c0392b') : 'var(--color-text-secondary)') + '">' + w.distance.toFixed(2) + '%</div></div>').join('');
+        '<div class="meta">' + esc(w.text) + '</div></div>' +
+        '<div class="mono tiny" style="min-width:7rem;text-align:right;color:' + (w.tone === 'bull' ? NAV.cssVar('--color-up', '#2f7d4f') : w.tone === 'bear' ? NAV.cssVar('--color-down', '#c0392b') : 'var(--color-text-secondary)') + '">' + esc(w.value) + '</div></div>').join('');
     }
     function feedHTML() {
       let list = all.filter(e => typeFilter === 'all' || e.type === typeFilter);

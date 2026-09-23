@@ -317,7 +317,7 @@
       return {
         value: x, color: T.faint, width: 1, dashStyle: 'Dash', zIndex: 2,
         label: { text: m.label, rotation: 270, align: 'right', y: 52, x: -4,
-          style: { color: T.faint, fontSize: '9.5px', fontFamily: "'Geist', sans-serif", textOutline: 'none' } }
+          style: { color: T.sec, fontSize: '10.5px', fontFamily: "'Geist', sans-serif", textOutline: 'none' } }
       };
     });
   }

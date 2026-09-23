@@ -363,7 +363,7 @@
     const item = (c) => {
       const active = route === '#/charts/' + c.slug;
       return '<a class="side-item' + (active ? ' active' : '') + '" href="#/charts/' + c.slug + '" data-slug="' + c.slug + '" title="' + esc(c.title) + '">' +
-        '<span class="ico">' + ICONS.chart + '</span><span class="label">' + esc(c.title) + '</span>' +
+        '<span class="ico cat-dot" data-cat="' + esc(c.cat) + '"></span><span class="label">' + esc(c.title) + '</span>' +
         '<span class="star' + (state.pinned.includes(c.slug) ? ' on' : '') + '" data-pin="' + c.slug + '" title="Pin chart">' + ICONS.star + '</span></a>';
     };
     let html = '';
@@ -413,9 +413,29 @@
     D.refreshTokens();
   }
 
+  function progress(on) {
+    let bar = document.getElementById('navProgress');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'navProgress';
+      bar.className = 'nav-progress';
+      document.body.appendChild(bar);
+    }
+    bar.classList.toggle('on', !!on);
+    if (on) {
+      bar.style.width = '12%';
+      setTimeout(() => { if (bar.classList.contains('on')) bar.style.width = '72%'; }, 120);
+    } else {
+      bar.style.width = '100%';
+      setTimeout(() => { bar.classList.remove('on'); bar.style.width = '0'; }, 260);
+    }
+  }
+
   async function render() {
+    progress(true);
     const route = nav.route();
-    const [page, arg] = route.split('/');
+    const [page, rawArg] = route.split('/');
+    const arg = rawArg ? rawArg.split('?')[0] : rawArg;
     closeMenu();
     if (nav.onLeave) { try { nav.onLeave(); } catch (e) { } nav.onLeave = null; }
     nav.destroyCharts();
@@ -435,6 +455,7 @@
     }
     // time-travel plot lines
     applyTT();
+    progress(false);
   }
   function applyTT() {
     registry.forEach(r => {
