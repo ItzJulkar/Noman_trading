@@ -1,0 +1,6 @@
+.vercel/
+.env.local
+service.log
+*.tgz
+__pycache__/
+tools/raw/
